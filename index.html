@@ -84,31 +84,65 @@
   let maxHeartDelay = 0; 
 
   function buildTextTargets(text){
-    const tmp = document.createElement('canvas');
-    const tctx = tmp.getContext('2d');
-    tmp.width = W; tmp.height = H;
+  const tmp = document.createElement('canvas');
+  const tctx = tmp.getContext('2d');
+  tmp.width = W; tmp.height = H;
 
-    const fontSize = Math.min(W*0.20, H*0.24);
-    tctx.clearRect(0,0,W,H);
-    tctx.fillStyle = '#fff';
-    tctx.textAlign = 'center';
-    tctx.textBaseline = 'middle';
-    tctx.font = `650 ${fontSize}px system-ui, Segoe UI, Arial`;
-    tctx.fillText(text, W/2, H/2 - 26*devicePixelRatio);
+  const margin = 32 * devicePixelRatio;       
+  const maxWidth = W - margin * 2;            
+  const maxFont = Math.min(W * 0.20, H * 0.24);
+  const minFont = Math.max(16 * devicePixelRatio, Math.min(W, H) * 0.10);
 
-    const img = tctx.getImageData(0,0,W,H).data;
-    const pts = [];
-    const step = Math.max(10, Math.round(8*devicePixelRatio));
-    const pad = 28*devicePixelRatio;
-    for(let y=pad;y<H-pad;y+=step){
-      for(let x=pad;x<W-pad;x+=step){
-        const a = img[(y*W + x)*4 + 3];
-        if(a>50) pts.push({x,y});
-      }
-    }
-    pts.sort((a,b)=> a.x===b.x ? a.y-b.y : a.x-b.x);
-    targetsText = resample(pts, Math.min(1000, pts.length));
+  const family = 'system-ui, Segoe UI, Arial';
+
+  const measure = (str, px) => {
+    tctx.font = `650 ${px}px ${family}`;
+    return tctx.measureText(str).width;
+  };
+  let fontSize = maxFont;
+  while (fontSize > minFont && measure(text, fontSize) > maxWidth) {
+    fontSize -= 2;
   }
+
+  tctx.clearRect(0,0,W,H);
+  tctx.fillStyle = '#fff';
+  tctx.textAlign = 'center';
+  tctx.textBaseline = 'middle';
+
+  const centerY = H/2 - 26*devicePixelRatio;
+
+  if (measure(text, fontSize) <= maxWidth) {
+    tctx.font = `650 ${fontSize}px ${family}`;
+    tctx.fillText(text, W/2, centerY);
+  } else {
+    const parts = text.split(' ');
+    let line1 = parts[0];
+    let line2 = parts.slice(1).join(' ') || '';
+    fontSize = Math.min(maxFont, fontSize + 6);
+    while (fontSize > minFont &&
+           (Math.max(measure(line1, fontSize), measure(line2, fontSize)) > maxWidth)) {
+      fontSize -= 2;
+    }
+    tctx.font = `650 ${fontSize}px ${family}`;
+    const lineGap = Math.max(10*devicePixelRatio, fontSize * 0.25);
+    tctx.fillText(line1, W/2, centerY - (fontSize/2 + lineGap/2));
+    tctx.fillText(line2, W/2, centerY + (fontSize/2 + lineGap/2));
+  }
+
+  const img = tctx.getImageData(0,0,W,H).data;
+  const pts = [];
+  const step = Math.max(10, Math.round(8*devicePixelRatio));
+  const pad = 28*devicePixelRatio;
+  for(let y=pad; y<H-pad; y+=step){
+    for(let x=pad; x<W-pad; x+=step){
+      const a = img[(y*W + x)*4 + 3];
+      if(a>50) pts.push({x,y});
+    }
+  }
+  pts.sort((a,b)=> a.x===b.x ? a.y-b.y : a.x-b.x);
+  targetsText = resample(pts, Math.min(1000, pts.length));
+}
+
 
   function buildHeartTargets(){
     const cx = heartCenterX = W/2, cy = heartCenterY = H/2 - 18*devicePixelRatio;
@@ -271,12 +305,15 @@
   }
 
   function reset(){
-    phase = 0; phaseTime = 0;
-    showMsg = false; msgAlpha = 0;
-    buildTextTargets("Feliz cumple");
-    buildHeartTargets();
-    seedText(targetsText);
-  }
+  phase = 0; phaseTime = 0;
+  showMsg = false; msgAlpha = 0;
+  const isPortrait = H > W;
+  const title = isPortrait ? "Feliz\ncumple" : "Feliz cumple";
+  buildTextTargets(title.replace('\n',' '));
+  buildHeartTargets();
+  seedText(targetsText);
+}
+
 
   reset(); requestAnimationFrame(loop);
 
