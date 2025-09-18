@@ -88,60 +88,52 @@
   const tctx = tmp.getContext('2d');
   tmp.width = W; tmp.height = H;
 
-  // ---- ajustes y helpers ----
-  const marginX = 32 * devicePixelRatio;            // margen lateral
-  const maxWidth = W - marginX * 2;                 // ancho útil
-  const marginY = 28 * devicePixelRatio;            // margen vertical
+  const pad = 28 * devicePixelRatio;        // igual que antes
+  const step = Math.max(10, Math.round(8 * devicePixelRatio)); // igual que antes
   const family = 'system-ui, Segoe UI, Arial';
 
-  // soportar salto de línea con '\n'
-  const lines = ('' + text).split('\n').slice(0,2); // usamos máx. 2 líneas
-  const isTwoLines = lines.length === 2;
+  // ¿viene con salto de línea? -> 2 filas
+  const lines = String(text).split('\n');
+  const twoLines = lines.length === 2;
 
-  // límites de fuente
-  const maxFont = Math.min(W * 0.26, H * 0.30);     // grande pero razonable
-  const minFont = 14 * devicePixelRatio;
-
-  const measure = (str, px) => {
-    tctx.font = `650 ${px}px ${family}`;
-    return tctx.measureText(str).width;
-  };
-
-  // hallamos el mayor fontSize que cabe en ancho (y alto si 2 líneas)
-  let fontSize = maxFont;
-  const lineGapFactor = 0.28; // separación relativa entre líneas
-  const fits = (px) => {
-    const wOK = Math.max(...lines.map(l => measure(l, px))) <= maxWidth;
-    if (!isTwoLines) return wOK;
-    const lineGap = Math.max(10*devicePixelRatio, px * lineGapFactor);
-    const totalHeight = px*2 + lineGap;
-    const hOK = totalHeight <= (H - marginY*2);
-    return wOK && hOK;
-  };
-  while (fontSize > minFont && !fits(fontSize)) fontSize -= 2;
-
-  // pintar texto en el canvas temporal
+  // ----- DIBUJO DE TEXTO -----
   tctx.clearRect(0,0,W,H);
   tctx.fillStyle = '#fff';
   tctx.textAlign = 'center';
   tctx.textBaseline = 'middle';
 
-  if (!isTwoLines){
+  if (!twoLines) {
+    // *** PC / horizontal: EXACTAMENTE como lo tenías ***
+    const fontSize = Math.min(W*0.20, H*0.24);
     tctx.font = `650 ${fontSize}px ${family}`;
-    tctx.fillText(lines[0], W/2, H/2 - 26*devicePixelRatio);
+    tctx.fillText(text, W/2, H/2 - 26*devicePixelRatio);
   } else {
-    const lineGap = Math.max(10*devicePixelRatio, fontSize * lineGapFactor);
-    const centerY = H/2 - 26*devicePixelRatio;
+    // *** Vertical móvil: dos líneas, lo más grande posible ***
+    // empezamos más grande que la una-línea
+    let fontSize = Math.min(W*0.32, H*0.34);
+    const maxWidth = W - pad*2;
+
+    const measure = (str, px) => {
+      tctx.font = `650 ${px}px ${family}`;
+      return tctx.measureText(str).width;
+    };
+
+    while (fontSize > 14*devicePixelRatio &&
+           (measure(lines[0], fontSize) > maxWidth ||
+            measure(lines[1], fontSize) > maxWidth)) {
+      fontSize -= 2;
+    }
+
     tctx.font = `650 ${fontSize}px ${family}`;
+    const lineGap = Math.max(10*devicePixelRatio, fontSize*0.28);
+    const centerY = H/2 - 26*devicePixelRatio;
     tctx.fillText(lines[0], W/2, centerY - (fontSize/2 + lineGap/2));
     tctx.fillText(lines[1], W/2, centerY + (fontSize/2 + lineGap/2));
   }
 
-  // muestreo de puntos (igual que antes)
+  // ----- GENERAR PUNTOS (igual que el original) -----
   const img = tctx.getImageData(0,0,W,H).data;
   const pts = [];
-  const step = Math.max(10, Math.round(8*devicePixelRatio));
-  const pad = 28*devicePixelRatio;
   for(let y=pad; y<H-pad; y+=step){
     for(let x=pad; x<W-pad; x+=step){
       const a = img[(y*W + x)*4 + 3];
@@ -149,7 +141,7 @@
     }
   }
   pts.sort((a,b)=> a.x===b.x ? a.y-b.y : a.x-b.x);
-  targetsText = resample(pts, Math.min(1000, pts.length));
+  targetsText = resample(pts, Math.min(1000, pts.length)); // mismo límite
 }
 
 
@@ -319,7 +311,6 @@ function reset(){
   showMsg = false; msgAlpha = 0;
 
   const isPortrait = H > W;
-  // En vertical: dos líneas y GRANDE. En horizontal: una línea.
   const title = isPortrait ? "Feliz\ncumple" : "Feliz cumple";
 
   buildTextTargets(title);
